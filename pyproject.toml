@@ -1,0 +1,10 @@
+[project]
+name = "ai-factory-optical-twin"
+version = "0.1.0"
+description = "Digital twin for AI-factory optical interconnect reliability and economics."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,5 +1,7 @@
 # ai-factory-optical-twin
 
+Maintained by: codex-daily-routine
+
 A research-flavored digital twin for AI-factory optical interconnects.
 
 It simulates a rack-scale GPU cluster, compares pluggable optics versus a

@@ -56,11 +56,17 @@ python -m optical_twin.cli compare \
   --fault fiber_contamination \
   --out reports/compare
 
+python -m optical_twin.cli matrix \
+  --out reports/matrix
+
 pytest -v
 ```
 
 Open `reports/demo/dashboard.html` in a browser. It is static HTML; no server is needed.
-The comparison command writes `reports/compare/comparison.html`.
+The comparison command writes `reports/compare/comparison.html`; the matrix command writes
+`reports/matrix/matrix.html` with an architecture-by-fault exposure map and flags
+diagnostic gaps where modeled impact exists but the current rules still call the scenario
+nominal.
 
 ## Scenarios
 
@@ -96,7 +102,8 @@ Change the numbers in `optical_twin/config.py` to test different assumptions.
 ## Status
 
 MVP: deterministic topology, simulation, telemetry diagnosis, economics, mitigation
-ranking, static HTML dashboard, markdown report, CLI, CI, and network-free tests.
+ranking, static HTML dashboard, architecture comparison, scenario matrix with diagnostic
+gap flags, markdown reports, CLI, CI, and network-free tests.
 
 ## License
 

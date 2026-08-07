@@ -4,7 +4,7 @@ import argparse
 
 from .config import ARCHITECTURES, FAULTS, SimulationConfig
 from .pipeline import run_twin
-from .report import write_artifacts, write_comparison_artifacts
+from .report import write_artifacts, write_comparison_artifacts, write_matrix_artifacts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +25,12 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--gpus-per-rack", type=int, default=8)
     compare.add_argument("--steps", type=int, default=180)
     compare.add_argument("--seed", type=int, default=7)
+    matrix = sub.add_parser("matrix", help="run every architecture/fault pair as an exposure matrix")
+    matrix.add_argument("--out", required=True, help="output directory for matrix reports")
+    matrix.add_argument("--racks", type=int, default=8)
+    matrix.add_argument("--gpus-per-rack", type=int, default=8)
+    matrix.add_argument("--steps", type=int, default=180)
+    matrix.add_argument("--seed", type=int, default=7)
     return parser
 
 
@@ -65,6 +71,27 @@ def main(argv: list[str] | None = None) -> int:
                 f"impact=${run.economics.total_impact_usd_day:,.2f}/day"
             )
         print(f"comparison: {paths['html']}")
+        return 0
+    if args.command == "matrix":
+        sim_config = SimulationConfig(
+            racks=args.racks,
+            gpus_per_rack=args.gpus_per_rack,
+            steps=args.steps,
+            seed=args.seed,
+        )
+        runs = tuple(
+            run_twin(architecture, fault, sim_config=sim_config)
+            for architecture in sorted(ARCHITECTURES)
+            for fault in sorted(FAULTS)
+        )
+        paths = write_matrix_artifacts(args.out, runs)
+        top = max(runs, key=lambda run: run.economics.total_impact_usd_day)
+        print(
+            "top exposure: "
+            f"{top.result.fabric.architecture.name}/{top.result.fault} "
+            f"${top.economics.total_impact_usd_day:,.2f}/day"
+        )
+        print(f"matrix: {paths['html']}")
         return 0
     return 2
 

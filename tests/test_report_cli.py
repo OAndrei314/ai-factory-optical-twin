@@ -7,9 +7,12 @@ from optical_twin.report import (
     render_comparison_html,
     render_comparison_markdown,
     render_html,
+    render_matrix_html,
+    render_matrix_markdown,
     render_markdown,
     write_artifacts,
     write_comparison_artifacts,
+    write_matrix_artifacts,
 )
 
 
@@ -53,5 +56,27 @@ def test_comparison_report_and_cli(tmp_path):
 
     assert "Architecture Comparison" in markdown
     assert "<svg" in html
+    assert paths["html"].exists()
+    assert code == 0
+
+
+def test_matrix_report_and_cli(tmp_path):
+    runs = tuple(
+        run_twin(architecture, fault, sim_config=SimulationConfig(racks=4, steps=30, seed=2))
+        for architecture in ("cpo", "pluggable")
+        for fault in ("none", "thermal_coupling")
+    )
+
+    markdown = render_matrix_markdown(runs)
+    html = render_matrix_html(runs)
+    paths = write_matrix_artifacts(tmp_path / "matrix", runs)
+    code = main(["matrix", "--out", str(tmp_path / "cli-matrix"), "--steps", "24", "--racks", "4"])
+
+    assert "Scenario Matrix" in markdown
+    assert "Highest Modeled Exposures" in markdown
+    assert "validation gap" in markdown
+    assert "<svg" in html
+    assert paths["summary"].exists()
+    assert paths["markdown"].exists()
     assert paths["html"].exists()
     assert code == 0

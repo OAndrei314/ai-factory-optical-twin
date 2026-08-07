@@ -61,6 +61,27 @@ def write_comparison_artifacts(out_dir: str | Path, runs: tuple[TwinRun, ...]) -
     return {"summary": summary_path, "markdown": markdown_path, "html": html_path}
 
 
+def write_matrix_artifacts(out_dir: str | Path, runs: tuple[TwinRun, ...]) -> dict[str, Path]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    summary_path = out / "matrix.json"
+    markdown_path = out / "matrix.md"
+    html_path = out / "matrix.html"
+    summary_path.write_text(
+        json.dumps(
+            [
+                _summary_dict(run.result, run.diagnosis, run.economics, run.mitigations)
+                for run in runs
+            ],
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    markdown_path.write_text(render_matrix_markdown(runs), encoding="utf-8")
+    html_path.write_text(render_matrix_html(runs), encoding="utf-8")
+    return {"summary": summary_path, "markdown": markdown_path, "html": html_path}
+
+
 def render_comparison_markdown(runs: tuple[TwinRun, ...]) -> str:
     lines = [
         "# Architecture Comparison",
@@ -84,6 +105,75 @@ def render_comparison_markdown(runs: tuple[TwinRun, ...]) -> str:
             "The comparison is deliberately synthetic. It is meant to expose the",
             "trade-off surface: optical power, capacity headroom, thermal coupling,",
             "failure diagnosis, and operational response value.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def render_matrix_markdown(runs: tuple[TwinRun, ...]) -> str:
+    sorted_runs = sorted(
+        runs,
+        key=lambda run: (
+            run.result.fabric.architecture.name,
+            run.result.fault,
+        ),
+    )
+    risk_ranked = sorted(
+        runs,
+        key=lambda run: run.economics.total_impact_usd_day,
+        reverse=True,
+    )
+    lines = [
+        "# Scenario Matrix",
+        "",
+        "| architecture | fault | throughput | impact/day | lost GPU-hours/day | diagnosis | validation gap | top mitigation |",
+        "| --- | --- | ---: | ---: | ---: | --- | :---: | --- |",
+    ]
+    for run in sorted_runs:
+        lines.append(
+            f"| {run.result.fabric.architecture.name} | {run.result.fault} | "
+            f"{run.result.average_throughput_index:.3f} | "
+            f"${run.economics.total_impact_usd_day:,.2f} | "
+            f"{run.economics.lost_gpu_hours_day:,.2f} | "
+            f"{run.diagnosis.primary} | {'yes' if _has_diagnostic_gap(run) else 'no'} | "
+            f"{run.mitigations[0].name} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Highest Modeled Exposures",
+            "",
+            "| rank | architecture | fault | impact/day | first response |",
+            "| ---: | --- | --- | ---: | --- |",
+        ]
+    )
+    for idx, run in enumerate(risk_ranked[:5], start=1):
+        lines.append(
+            f"| {idx} | {run.result.fabric.architecture.name} | {run.result.fault} | "
+            f"${run.economics.total_impact_usd_day:,.2f} | {run.mitigations[0].name} |"
+        )
+    gap_runs = [run for run in risk_ranked if _has_diagnostic_gap(run)]
+    if gap_runs:
+        lines.extend(
+            [
+                "",
+                "## Diagnostic Gaps",
+                "",
+                "| architecture | fault | impact/day | reason |",
+                "| --- | --- | ---: | --- |",
+            ]
+        )
+        for run in gap_runs:
+            lines.append(
+                f"| {run.result.fabric.architecture.name} | {run.result.fault} | "
+                f"${run.economics.total_impact_usd_day:,.2f} | impact exists but diagnosis stayed nominal |"
+            )
+    lines.extend(
+        [
+            "",
+            "This matrix is synthetic, but it is useful for research planning: it shows which",
+            "fault families deserve deeper telemetry, validation, and mitigation work first.",
             "",
         ]
     )
@@ -133,6 +223,69 @@ def render_comparison_html(runs: tuple[TwinRun, ...]) -> str:
       <table>
         <tr><th>Architecture</th><th>Throughput</th><th>Optical power</th><th>Capex</th><th>Impact</th><th>Diagnosis</th><th>Top mitigation</th></tr>
         {rows}
+      </table>
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+
+def render_matrix_html(runs: tuple[TwinRun, ...]) -> str:
+    archs = sorted({run.result.fabric.architecture.name for run in runs})
+    faults = sorted({run.result.fault for run in runs})
+    by_key = {(run.result.fabric.architecture.name, run.result.fault): run for run in runs}
+    max_impact = max(run.economics.total_impact_usd_day for run in runs) or 1.0
+    rows = []
+    for fault in faults:
+        cells = [f"<th>{html.escape(fault)}</th>"]
+        for arch in archs:
+            run = by_key[(arch, fault)]
+            intensity = run.economics.total_impact_usd_day / max_impact
+            red = int(255 - 65 * (1 - intensity))
+            green = int(247 - 160 * intensity)
+            blue = int(230 - 190 * intensity)
+            cells.append(
+                f'<td style="background: rgb({red}, {green}, {blue});">'
+                f'<strong>${run.economics.total_impact_usd_day:,.0f}/day</strong><br>'
+                f'<span>{run.result.average_throughput_index:.3f} throughput</span><br>'
+                f'<span>{html.escape(run.mitigations[0].name)}</span>'
+                f'{"<br><span>diagnostic gap</span>" if _has_diagnostic_gap(run) else ""}'
+                "</td>"
+            )
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+    header = "".join(f"<th>{html.escape(arch)}</th>" for arch in archs)
+    top = sorted(runs, key=lambda run: run.economics.total_impact_usd_day, reverse=True)[:5]
+    bars = _risk_bars(top)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Optical Fault Scenario Matrix</title>
+  <style>
+    body {{ margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #172026; background: #f5f7f2; }}
+    header {{ padding: 34px clamp(18px, 4vw, 52px); background: #fff; border-bottom: 1px solid #d8e1e7; }}
+    main {{ padding: 24px clamp(18px, 4vw, 52px) 42px; display: grid; gap: 16px; }}
+    section {{ background: #fff; border: 1px solid #d8e1e7; border-radius: 8px; padding: 18px; }}
+    h1 {{ margin: 0 0 8px; font-size: clamp(28px, 4vw, 46px); letter-spacing: 0; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+    th, td {{ padding: 11px; border-bottom: 1px solid #d8e1e7; text-align: left; vertical-align: top; }}
+    td span {{ color: #5d6b74; font-size: 13px; }}
+    svg {{ width: 100%; height: auto; display: block; }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Optical Fault Scenario Matrix</h1>
+    <p>Architecture-by-fault exposure map for prioritizing validation and mitigation work.</p>
+  </header>
+  <main>
+    <section>{bars}</section>
+    <section>
+      <table>
+        <tr><th>Fault</th>{header}</tr>
+        {"".join(rows)}
       </table>
     </section>
   </main>
@@ -449,3 +602,30 @@ def _comparison_bars(runs: tuple[TwinRun, ...]) -> str:
         parts.append(f'<text x="500" y="{y + 36}" font-size="13" fill="#5d6b74">${run.economics.total_impact_usd_day:,.0f}/day</text>')
     parts.append("</svg>")
     return "".join(parts)
+
+
+def _risk_bars(runs: list[TwinRun]) -> str:
+    width = 820
+    row_h = 54
+    height = 34 + row_h * len(runs)
+    max_impact = max(run.economics.total_impact_usd_day for run in runs) or 1.0
+    parts = [f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="top modeled exposures">']
+    parts.append('<text x="0" y="18" font-size="14" fill="#5d6b74">Highest modeled exposure scenarios</text>')
+    for idx, run in enumerate(runs):
+        y = 42 + idx * row_h
+        impact_w = (run.economics.total_impact_usd_day / max_impact) * 360
+        label = f"{run.result.fabric.architecture.name} / {run.result.fault}"
+        parts.append(f'<text x="0" y="{y + 14}" font-size="14" fill="#172026">{html.escape(label)}</text>')
+        parts.append(f'<rect x="230" y="{y}" width="{impact_w:.1f}" height="16" rx="4" fill="#b42318"/>')
+        parts.append(f'<text x="610" y="{y + 13}" font-size="13" fill="#172026">${run.economics.total_impact_usd_day:,.0f}/day</text>')
+        parts.append(f'<text x="230" y="{y + 36}" font-size="13" fill="#5d6b74">{html.escape(run.mitigations[0].name)}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def _has_diagnostic_gap(run: TwinRun) -> bool:
+    return (
+        run.diagnosis.primary == "nominal"
+        and run.economics.lost_gpu_hours_day > 1.0
+        and run.result.fault != "none"
+    )

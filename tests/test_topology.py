@@ -1,3 +1,5 @@
+import pytest
+
 from optical_twin.config import ARCHITECTURES, SimulationConfig
 from optical_twin.topology import build_fabric
 
@@ -7,5 +9,5 @@ def test_fabric_counts_capacity_and_endpoints():
 
     assert len(fabric.links) == 16
     assert fabric.optical_endpoint_count == 32
-    assert fabric.total_capacity_tbps == 16 * 1.6
+    assert fabric.total_capacity_tbps == pytest.approx(16 * 1.6)
     assert fabric.optical_power_kw > 0

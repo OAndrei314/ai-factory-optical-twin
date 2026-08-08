@@ -17,6 +17,16 @@ class EconomicSummary:
     total_impact_usd_day: float
 
 
+@dataclass(frozen=True)
+class ArchitectureBusinessCase:
+    baseline_impact_usd_day: float
+    candidate_impact_usd_day: float
+    daily_savings_usd: float
+    capex_delta_usd: float
+    payback_days: float
+    decision: str
+
+
 def summarize_economics(
     result: SimulationResult,
     config: EconomicsConfig,
@@ -41,4 +51,28 @@ def summarize_economics(
         lost_compute_usd_day=round(lost_compute, 2),
         downtime_risk_usd_day=round(downtime_risk, 2),
         total_impact_usd_day=round(total, 2),
+    )
+
+
+def compare_architecture_business_case(
+    baseline: EconomicSummary,
+    candidate: EconomicSummary,
+    max_payback_days: float = 365.0,
+) -> ArchitectureBusinessCase:
+    """Compare two architecture economics summaries as a capex payback case."""
+    daily_savings = baseline.total_impact_usd_day - candidate.total_impact_usd_day
+    capex_delta = candidate.estimated_optics_capex_usd - baseline.estimated_optics_capex_usd
+    if daily_savings <= 0:
+        payback_days = float("inf")
+        decision = "stay_with_baseline"
+    else:
+        payback_days = max(0.0, capex_delta) / daily_savings
+        decision = "upgrade_candidate" if payback_days <= max_payback_days else "needs_business_review"
+    return ArchitectureBusinessCase(
+        baseline_impact_usd_day=round(baseline.total_impact_usd_day, 2),
+        candidate_impact_usd_day=round(candidate.total_impact_usd_day, 2),
+        daily_savings_usd=round(daily_savings, 2),
+        capex_delta_usd=round(capex_delta, 2),
+        payback_days=round(payback_days, 2) if payback_days != float("inf") else payback_days,
+        decision=decision,
     )

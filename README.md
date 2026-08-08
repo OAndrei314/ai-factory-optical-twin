@@ -28,7 +28,8 @@ growth in AI clusters.
 
 **Engineering evidence:** every run produces telemetry, root-cause diagnosis, throughput
 impact, optical energy cost, estimated lost GPU-hour cost, mitigation ranking, and a
-visual dashboard.
+visual dashboard. Architecture comparisons can also be converted into a capex payback
+case via `compare_architecture_business_case()`.
 
 ## What It Builds
 
@@ -103,9 +104,10 @@ Change the numbers in `optical_twin/config.py` to test different assumptions.
 
 ## Status
 
-MVP: deterministic topology, simulation, telemetry diagnosis, economics, mitigation
-ranking, static HTML dashboard, architecture comparison, scenario matrix with diagnostic
-gap flags, markdown reports, CLI, CI, and network-free tests.
+MVP: deterministic topology, simulation, telemetry diagnosis, economics, business-case
+payback comparison, mitigation ranking, static HTML dashboard, architecture comparison,
+scenario matrix with diagnostic gap flags, markdown reports, CLI, CI, and network-free
+tests.
 
 ## License
 

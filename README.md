@@ -10,26 +10,8 @@ telemetry diagnosis, estimates business impact, evaluates mitigation actions, an
 a static HTML dashboard plus markdown report.
 
 This is not a vendor model and it does not use proprietary data. It is a compact,
-inspectable lab for the question that keeps showing up in AI infrastructure:
-
-> When model training becomes a physical-infrastructure business, how do optics,
-> reliability, power, and validation time change the economics?
-
-## Research + Money Thesis
-
-**Research question:** how do optical-link health, thermal coupling, and mitigation policy
-change end-to-end AI workload throughput in a multi-rack cluster?
-
-**Money question:** AI infrastructure spend increasingly lands in power, networking,
-packaging, and supply chain constraints, not only GPUs. Public signals include NVIDIA
-positioning co-packaged optics for AI-factory networking and energy efficiency, OpenAI and
-Broadcom's 10 GW accelerator/networking collaboration, and optical-transceiver/CPO demand
-growth in AI clusters.
-
-**Engineering evidence:** every run produces telemetry, root-cause diagnosis, throughput
-impact, optical energy cost, estimated lost GPU-hour cost, mitigation ranking, and a
-visual dashboard. Architecture comparisons can also be converted into a capex payback
-case via `compare_architecture_business_case()`.
+inspectable lab for reasoning about optics, reliability, power, and validation policy in
+AI infrastructure.
 
 ## What It Builds
 
